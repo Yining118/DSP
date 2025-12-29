@@ -22,35 +22,34 @@ from nltk.corpus import stopwords
 stop_words = set(stopwords.words("english"))
 
 def download_and_extract(url: str, output_folder: str):
-    """
-    Downloads a ZIP file from Google Drive and extracts it to a folder.
-    Returns the folder that contains the model files (config.json, model.safetensors, etc.).
-    Automatically detects if there's a nested folder and returns the correct inner path.
-    """
     zip_path = output_folder + ".zip"
 
-    if not os.path.exists(output_folder):
+    # Ensure folder exists
+    os.makedirs(output_folder, exist_ok=True)
+
+    # Download zip if not exists
+    if not os.path.exists(zip_path):
         print(f"Downloading {output_folder}...")
         gdown.download(url, zip_path, quiet=False)
-        print(f"Extracting {output_folder}...")
-        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-            zip_ref.extractall(output_folder)
-        os.remove(zip_path)
-        print(f"{output_folder} downloaded and extracted.")
 
-    # Detect inner folder containing model files
+    # Extract
+    print(f"Extracting {output_folder}...")
+    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+        zip_ref.extractall(output_folder)
+    
+    # Remove zip
+    if os.path.exists(zip_path):
+        os.remove(zip_path)
+
+    # Detect inner folder containing HuggingFace model files
     for root, dirs, files in os.walk(output_folder):
         if "config.json" in files or "pytorch_model.bin" in files or "model.safetensors" in files:
-            return root  # This is the folder huggingface expects
+            return root
 
     raise FileNotFoundError(f"No HuggingFace model files found in {output_folder}")
 
+# LOAD MODELS
 def load_models():
-    """
-    Downloads and loads mental health and sentiment BERT models from Google Drive.
-    Automatically handles nested folders inside ZIPs.
-    Returns: mental_model, mental_tokenizer, sentiment_model, sentiment_tokenizer, label_encoder, device
-    """
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     # Google Drive URLs
@@ -58,19 +57,17 @@ def load_models():
     sentiment_url = "https://drive.google.com/uc?id=12Gmm6KQmY4daxf3tUDber8p3CwBu2rVV"
     label_url = "https://drive.google.com/uc?id=1njNff6TxkJEOjxAY7HU_wXnrnFzs9ulp"
 
-    # Download & extract models
-    mental_inner = download_and_extract(mental_url, "saved_mental_status_bert/saved_mental_status_bert")
-    sentiment_inner = download_and_extract(sentiment_url, "saved_sentiment_model/saved_sentiment_model")
+    # Download & extract
+    mental_inner = download_and_extract(mental_url, "saved_mental_status_bert")
+    sentiment_inner = download_and_extract(sentiment_url, "saved_sentiment_model")
 
-    # Load HuggingFace models
+    # Load HuggingFace models safely
     print("Loading mental health model...")
-    mental_model = AutoModelForSequenceClassification.from_pretrained(mental_inner)
-    mental_model = mental_model.to_empty(device)  
+    mental_model = AutoModelForSequenceClassification.from_pretrained(mental_inner, device_map="auto")
     mental_tokenizer = AutoTokenizer.from_pretrained(mental_inner)
 
     print("Loading sentiment model...")
-    sentiment_model = AutoModelForSequenceClassification.from_pretrained(sentiment_inner)
-    sentiment_model = sentiment_model.to_empty(device)  
+    sentiment_model = AutoModelForSequenceClassification.from_pretrained(sentiment_inner, device_map="auto")
     sentiment_tokenizer = AutoTokenizer.from_pretrained(sentiment_inner)
 
     # Load label encoder
@@ -81,13 +78,13 @@ def load_models():
     with open("label_encoder.pkl", "rb") as f:
         label_encoder = pickle.load(f)
 
-    # Set models to eval mode
     mental_model.eval()
     sentiment_model.eval()
 
     print("Models and tokenizers are ready.")
     return mental_model, mental_tokenizer, sentiment_model, sentiment_tokenizer, label_encoder, device
 
+# Initialize models
 mental_model, mental_tokenizer, sentiment_model, sentiment_tokenizer, label_encoder, device = load_models()
 
 # TEXT CLEANING FUNCTION
