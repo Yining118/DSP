@@ -68,11 +68,11 @@ def load_models():
 
     # Load HuggingFace models
     print("Loading mental health model...")
-    mental_model = AutoModelForSequenceClassification.from_pretrained(mental_inner).to(device)
+    mental_model = AutoModelForSequenceClassification.from_pretrained(mental_inner)
     mental_tokenizer = AutoTokenizer.from_pretrained(mental_inner)
 
     print("Loading sentiment model...")
-    sentiment_model = AutoModelForSequenceClassification.from_pretrained(sentiment_inner).to(device)
+    sentiment_model = AutoModelForSequenceClassification.from_pretrained(sentiment_inner)
     sentiment_tokenizer = AutoTokenizer.from_pretrained(sentiment_inner)
 
     # Load label encoder
