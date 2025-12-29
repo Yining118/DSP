@@ -1,0 +1,9 @@
+streamlit
+torch
+transformers
+nltk
+pandas
+matplotlib
+scikit-learn
+contractions
+gdown
