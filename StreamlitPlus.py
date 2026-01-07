@@ -68,11 +68,11 @@ def load_models():
 
     # Load HuggingFace models
     print("Loading mental health model...")
-    mental_model = AutoModelForSequenceClassification.from_pretrained(mental_inner)
+    mental_model = AutoModelForSequenceClassification.from_pretrained(mental_inner).to(device)
     mental_tokenizer = AutoTokenizer.from_pretrained(mental_inner)
 
     print("Loading sentiment model...")
-    sentiment_model = AutoModelForSequenceClassification.from_pretrained(sentiment_inner)
+    sentiment_model = AutoModelForSequenceClassification.from_pretrained(sentiment_inner).to(device)
     sentiment_tokenizer = AutoTokenizer.from_pretrained(sentiment_inner)
 
     # Load label encoder
@@ -151,10 +151,9 @@ def detection_with_sentiment(text):
     with torch.no_grad():
         mh_outputs = mental_model(**mh_inputs)
         mh_logits = mh_outputs.logits
-        predicted_label_idx = torch.argmax(mh_logits, dim=1).item()
+        predicted_label_idx = torch.argmax(mh_logits, dim=1).cpu().item()
         status = label_encoder.inverse_transform([predicted_label_idx])[0]
-        confidence = F.softmax(mh_logits, dim=1)[0, predicted_label_idx].item()
-
+        confidence = F.softmax(mh_logits, dim=1)[0, predicted_label_idx].cpu().item()
     tokens = mental_tokenizer.tokenize(cleaned_text)
     top_words = tokens[:10]
 
