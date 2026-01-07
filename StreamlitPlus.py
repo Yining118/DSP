@@ -162,30 +162,103 @@ def detection_with_sentiment(text: str):
 # -----------------------------
 # Streamlit UI
 # -----------------------------
-st.set_page_config(page_title="Mental Health Detection", layout="centered")
-st.title("Mental Health & Sentiment Detection")
+st.markdown(
+    """
+    <style>
+    .stApp {
+        background-color: #f0f8ff;
+    }
+    
+    h1, h2, h3, h4 {
+        font-family: 'Arial Black', sans-serif;
+        color: #1e3d59;
+    }
+    .stButton>button {
+        background-color: #ff6f61;
+        color: white;
+        font-size:16px;
+        border-radius:10px;
+    }
+    .stTextInput>div>input {
+        font-family: 'Courier New', monospace;
+        font-size:16px;
+    }
+    </style>
+    """, unsafe_allow_html=True
+)
 
-input_text = st.text_input("Enter your text:")
+st.title("Mental Health & Sentiment Detection App")
+
+input_text = st.text_input("Enter your text here:")
 
 if st.button("Detect"):
-    if not input_text.strip():
-        st.warning("Please enter some text.")
+    if input_text.strip() == "":
+        st.warning("Please enter some text first.")
     else:
         result = detection_with_sentiment(input_text)
+        status = result["status"]
+        sentiment = result["sentiment"]
+        confidence = result["confidence"]
+        top_words = result["top_words"]
+        suggestion = result["suggestion"]
+        definition = result["definition"]
 
+        # Tabs
         tabs = st.tabs(["Status", "Explanation", "Suggestions", "Sentiment"])
 
+        # Tab 1: Status
         with tabs[0]:
-            st.subheader(result["status"])
-            st.write(f"Confidence: {result['confidence']*100:.2f}%")
-            st.info(result["definition"])
+            st.subheader("Mental Health Status")
+            st.markdown(
+                f"""
+                <div style="background-color:#e0f7fa;padding:15px;border-radius:10px">
+                    <h3>{status} ({confidence*100:.1f}% confidence)</h3>
+                </div>
+                """, unsafe_allow_html=True
+            )
+            with st.expander("What does this label mean?"):
+                st.write(definition)
 
+        # Tab 2: Explanation
         with tabs[1]:
-            st.write("Top contributing words:")
-            st.write(", ".join(result["top_words"]))
+            st.subheader("Why this prediction?")
+            st.markdown(f"**Top contributing words:** {', '.join(top_words)}")
 
+        # Tab 3: Suggestions
         with tabs[2]:
-            st.success(result["suggestion"])
+            st.subheader("Suggested Actions")
+            st.markdown(
+                f"""
+                <div style="background-color:#fff3e0;padding:15px;border-radius:10px">
+                    {suggestion}
+                </div>
+                """, unsafe_allow_html=True
+            )
 
+        # Tab 4: Sentiment
         with tabs[3]:
-            st.bar_chart(result["sentiment"])
+            st.subheader("Sentiment Analysis")
+            col1, col2 = st.columns([1, 1])
+
+            # Scores
+            with col1:
+                st.markdown("### Sentiment Scores")
+                st.write({
+                    "Negative": round(sentiment["negative"], 3),
+                    "Neutral": round(sentiment["neutral"], 3),
+                    "Positive": round(sentiment["positive"], 3),
+                })
+
+            # Pie chart
+            with col2:
+                labels = ['Negative', 'Neutral', 'Positive']
+                sizes = [sentiment['negative'], sentiment['neutral'], sentiment['positive']]
+                if sum(sizes) == 0:
+                    sizes = [0.01,0.01,0.01]
+                fig, ax = plt.subplots(figsize=(4,4))
+                ax.pie(
+                    sizes, labels=labels, autopct='%1.1f%%', startangle=140,
+                    explode=(0.05,0.05,0.05), shadow=True
+                )
+                ax.set_title('Sentiment Distribution')
+                st.pyplot(fig)
