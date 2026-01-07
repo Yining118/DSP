@@ -37,11 +37,11 @@ def download_and_extract(url: str, output_folder: str):
     raise FileNotFoundError("No HuggingFace model files found.")
 
 # -----------------------------
-# Load Models (CACHED)
+# Load Models (SAFE FOR STREAMLIT CLOUD)
 # -----------------------------
 @st.cache_resource
 def load_models():
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cpu")  # 🚨 FORCE CPU (Streamlit Cloud)
 
     mental_url = "https://drive.google.com/uc?id=1jgYUPc5ZHyzMqjK6y1mPTIEzNfVT1A-p"
     sentiment_url = "https://drive.google.com/uc?id=12Gmm6KQmY4daxf3tUDber8p3CwBu2rVV"
@@ -50,12 +50,18 @@ def load_models():
     mental_dir = download_and_extract(mental_url, "saved_mental_status_bert")
     sentiment_dir = download_and_extract(sentiment_url, "saved_sentiment_model")
 
+    # 🚫 DO NOT CALL .to(device) ON MODELS
     mental_model = AutoModelForSequenceClassification.from_pretrained(
-        mental_dir, low_cpu_mem_usage=False
-    ).to(device)
+        mental_dir,
+        torch_dtype=torch.float32,
+        low_cpu_mem_usage=False
+    )
+
     sentiment_model = AutoModelForSequenceClassification.from_pretrained(
-        sentiment_dir, low_cpu_mem_usage=False
-    ).to(device)
+        sentiment_dir,
+        torch_dtype=torch.float32,
+        low_cpu_mem_usage=False
+    )
 
     mental_tokenizer = AutoTokenizer.from_pretrained(mental_dir)
     sentiment_tokenizer = AutoTokenizer.from_pretrained(sentiment_dir)
@@ -93,21 +99,21 @@ def clean_text(text: str) -> str:
 # -----------------------------
 suggestions_dict = {
     "Suicidal": "Seek professional help immediately. Call a helpline or trusted person.",
-    "Anxiety": "Practice mindfulness, breathing exercises, or talk to a therapist.",
-    "Depression": "Maintain routines, stay active, and reach out for support.",
-    "Stress": "Take breaks, prioritize tasks, and practice relaxation.",
-    "Bipolar": "Monitor moods and consult mental health professionals.",
+    "Anxiety": "Practice mindfulness or talk to a therapist.",
+    "Depression": "Maintain routines and reach out for support.",
+    "Stress": "Take breaks and practice relaxation techniques.",
+    "Bipolar": "Monitor moods and consult professionals.",
     "Personality disorder": "Therapy and structured routines can help.",
     "Normal": "Keep up your healthy habits."
 }
 
 label_definitions = {
     "Suicidal": "Thoughts of self-harm or hopelessness.",
-    "Anxiety": "Persistent worry or fear affecting daily life.",
+    "Anxiety": "Persistent worry or fear.",
     "Depression": "Ongoing sadness and loss of interest.",
-    "Stress": "Mental or physical tension due to challenges.",
+    "Stress": "Mental or physical tension.",
     "Bipolar": "Mood swings between highs and lows.",
-    "Personality disorder": "Long-term patterns affecting behavior.",
+    "Personality disorder": "Long-term behavioral patterns.",
     "Normal": "No significant concern detected."
 }
 
@@ -124,8 +130,8 @@ def detection_with_sentiment(text: str):
 
     with torch.no_grad():
         logits = mental_model(**mh_inputs).logits
-        idx = torch.argmax(logits, dim=1).cpu().item()
-        confidence = F.softmax(logits, dim=1)[0, idx].cpu().item()
+        idx = torch.argmax(logits, dim=1).item()
+        confidence = F.softmax(logits, dim=1)[0, idx].item()
 
     status = label_encoder.inverse_transform([idx])[0]
     tokens = mental_tokenizer.tokenize(cleaned)[:10]
@@ -136,7 +142,9 @@ def detection_with_sentiment(text: str):
     sent_inputs = {k: v.to(device) for k, v in sent_inputs.items()}
 
     with torch.no_grad():
-        probs = F.softmax(sentiment_model(**sent_inputs).logits, dim=-1).cpu().numpy()[0]
+        probs = F.softmax(
+            sentiment_model(**sent_inputs).logits, dim=-1
+        ).cpu().numpy()[0]
 
     return {
         "status": status,
