@@ -187,7 +187,7 @@ st.markdown(
     """, unsafe_allow_html=True
 )
 
-st.title("Mental Health & Sentiment Detection App")
+st.title("Mental Health Status & Sentiment Detection App")
 
 input_text = st.text_input("Enter your text here:")
 
