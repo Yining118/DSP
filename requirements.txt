@@ -1,9 +1,10 @@
-streamlit
-torch
-transformers
-nltk
+streamlit==1.32.2
+torch==2.2.2
+transformers==4.38.2
+numpy<2
 pandas
+nltk
+gdown
+contractions
 matplotlib
 scikit-learn
-contractions
-gdown
