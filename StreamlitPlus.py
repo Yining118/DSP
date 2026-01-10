@@ -258,7 +258,7 @@ awareness_info= {
 
 
 hf_token = os.environ.get("HF_TOKEN")
-st.write("HF_TOKEN set?", bool(hf_token))  # <-- will display
+st.write("HF_TOKEN set?", bool(hf_token))  # will show in app
 
 @st.cache_resource
 def load_translation_model():
@@ -267,8 +267,6 @@ def load_translation_model():
     model = MarianMTModel.from_pretrained(model_name, use_auth_token=hf_token)
     model.eval()
     return tokenizer, model
-
-translation_tokenizer, translation_model = load_translation_model()
 
 translation_tokenizer, translation_model = load_translation_model()
 
@@ -418,7 +416,7 @@ language = st.selectbox("Choose language / Pilih bahasa:", ["English", "Malay"])
 
 # Title
 st.title(
-    "🌟 Sentiment Detection App 🌟"
+    "🌟 Mental Health & Sentiment Detection App 🌟"
     if language == "English"
     else "🌟 Aplikasi Pengesanan Kesihatan Mental & Sentimen 🌟"
 )
@@ -492,12 +490,11 @@ if st.session_state["result"]:
     with tabs[1]:
         st.subheader("Top Contributing Words" if language == "English" else "Perkataan Penyumbang Utama")
         if language == "Malay":
-            try:
-                top_text = " ".join(top_words)
-                top_text_malay = translator.translate(top_text, src="en", dest="ms").text
-                top_words_display = top_text_malay.split()
-            except:
-                top_words_display = top_words
+            top_text = " ".join(top_words)
+            inputs = translation_tokenizer(top_text, return_tensors="pt", truncation=True)
+            translated = translation_model.generate(**inputs)
+            top_text_malay = translation_tokenizer.decode(translated[0], skip_special_tokens=True)
+            top_words_display = top_text_malay.split()
         else:
             top_words_display = top_words
         st.markdown(f"**{', '.join(top_words_display)}**")
