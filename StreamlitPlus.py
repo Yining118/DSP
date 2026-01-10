@@ -17,7 +17,7 @@ import matplotlib.pyplot as plt
 import plotly.express as px
 from transformers import MarianMTModel, MarianTokenizer
 import os
-
+from googletrans import Translator
 
 # -----------------------------
 # NLTK Setup
@@ -293,25 +293,26 @@ awareness_info= {
 }
 
 
-hf_token = os.environ.get("HF_TOKEN")
-st.write("HF_TOKEN set?", bool(hf_token))  # will show in app
-
+# -------------------------------
+# Initialize translator
+# -------------------------------
 @st.cache_resource
-def load_translation_model():
-    model_name = "Helsinki-NLP/opus-mt-mul-en"
-    tokenizer = MarianTokenizer.from_pretrained(model_name, use_auth_token=hf_token)
-    model = MarianMTModel.from_pretrained(model_name, use_auth_token=hf_token)
-    model.eval()
-    return tokenizer, model
+def load_translator():
+    return Translator()
 
-translation_tokenizer, translation_model = load_translation_model()
+translator = load_translator()
 
+# -------------------------------
+# Malay → English Translation
+# -------------------------------
 def translate_malay_to_english(text):
     if not text.strip():
         return ""
-    inputs = translation_tokenizer(text, return_tensors="pt", truncation=True)
-    translated = translation_model.generate(**inputs)
-    return translation_tokenizer.decode(translated[0], skip_special_tokens=True)
+    try:
+        translated = translator.translate(text, src="ms", dest="en")
+        return translated.text
+    except:
+        return text
 
 # -------------------------------
 # Detection Function
@@ -452,7 +453,7 @@ language = st.selectbox("Choose language / Pilih bahasa:", ["English", "Malay"])
 
 # Title
 st.title(
-    "🌟 Mental Health Status & Sentiment Detection App 🌟"
+    "🌟 Mental Health & Sentiment Detection App 🌟"
     if language == "English"
     else "🌟 Aplikasi Pengesanan Kesihatan Mental & Sentimen 🌟"
 )
@@ -464,7 +465,7 @@ input_text = st.text_area(
     else "Masukkan teks anda (Bahasa Melayu atau Inggeris):"
 )
 
-# Translate Malay → English
+#Translate Malay → English
 translated_text = translate_malay_to_english(input_text) if language=="Malay" else input_text
 if translated_text:
     st.write("Translated Text:" if language=="English" else "Teks Terjemahan:", translated_text)
@@ -526,11 +527,12 @@ if st.session_state["result"]:
     with tabs[1]:
         st.subheader("Top Contributing Words" if language == "English" else "Perkataan Penyumbang Utama")
         if language == "Malay":
-            top_text = " ".join(top_words)
-            inputs = translation_tokenizer(top_text, return_tensors="pt", truncation=True)
-            translated = translation_model.generate(**inputs)
-            top_text_malay = translation_tokenizer.decode(translated[0], skip_special_tokens=True)
-            top_words_display = top_text_malay.split()
+            try:
+                top_text = " ".join(top_words)
+                top_text_malay = translator.translate(top_text, src="en", dest="ms").text
+                top_words_display = top_text_malay.split()
+            except:
+                top_words_display = top_words
         else:
             top_words_display = top_words
         st.markdown(f"**{', '.join(top_words_display)}**")
