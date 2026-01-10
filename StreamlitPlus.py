@@ -257,36 +257,18 @@ awareness_info= {
 }
 
 
-# -------------------------------
-# Load MarianMT Translation Model
-# -------------------------------
+hf_token = os.environ.get("HF_TOKEN")
+st.write("HF_TOKEN set?", bool(hf_token))  # <-- will display
+
+@st.cache_resource
 def load_translation_model():
     model_name = "Helsinki-NLP/opus-mt-mul-en"
-    hf_token = os.environ.get("HF_TOKEN")
-
-    # Check if token is set
-    st.write("HF_TOKEN exists?", bool(hf_token))
-    
-    try:
-        tokenizer = MarianTokenizer.from_pretrained(model_name, use_auth_token=hf_token)
-        model = MarianMTModel.from_pretrained(model_name, use_auth_token=hf_token)
-        model.eval()
-        st.write("Translation model loaded successfully ✅")
-    except Exception as e:
-        st.error(f"Failed to load translation model ❌: {e}")
-        return None, None
-    
-    # Optional quick test translation
-    try:
-        test_text = "Halo dunia"  # "Hello world" in Malay
-        inputs = tokenizer(test_text, return_tensors="pt")
-        translated = model.generate(**inputs)
-        translated_text = tokenizer.decode(translated[0], skip_special_tokens=True)
-        st.write("Test translation:", translated_text)
-    except Exception as e:
-        st.error(f"Test translation failed: {e}")
-
+    tokenizer = MarianTokenizer.from_pretrained(model_name, use_auth_token=hf_token)
+    model = MarianMTModel.from_pretrained(model_name, use_auth_token=hf_token)
+    model.eval()
     return tokenizer, model
+
+translation_tokenizer, translation_model = load_translation_model()
 
 translation_tokenizer, translation_model = load_translation_model()
 
