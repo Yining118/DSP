@@ -17,6 +17,9 @@ import matplotlib.pyplot as plt
 import plotly.express as px
 from transformers import MarianMTModel, MarianTokenizer
 
+import os
+hf_token = os.environ.get("HF_TOKEN")
+
 # -------------------------------
 # NLTK Setup
 # -------------------------------
@@ -261,8 +264,9 @@ awareness_info= {
 @st.cache_resource
 def load_translation_model():
     model_name = "Helsinki-NLP/opus-mt-mul-en"
-    tokenizer = MarianTokenizer.from_pretrained(model_name)
-    model = MarianMTModel.from_pretrained(model_name)
+    hf_token = os.environ.get("HF_TOKEN")
+    tokenizer = MarianTokenizer.from_pretrained(model_name, use_auth_token=hf_token)
+    model = MarianMTModel.from_pretrained(model_name, use_auth_token=hf_token)
     model.eval()
     return tokenizer, model
 
