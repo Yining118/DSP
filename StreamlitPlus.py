@@ -484,7 +484,7 @@ if language == "Malay" and input_text.strip():
 
 st.write(
     "Translated Text:" if language == "English" else "Teks Terjemahan:",
-    translated
+    translated = safe_translate(input_text, target="en")
 )
 
 # -----------------------------
@@ -699,7 +699,7 @@ if st.session_state["result"]:
                 explode=(0.05,0.05,0.05), shadow=True
             )
             st.pyplot(fig, transparent=True)
-            
+
     # Tab 5: Social Media Analysis
     with tabs[4]:
         st.subheader(
