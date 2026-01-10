@@ -17,6 +17,8 @@ import plotly.express as px
 import random
 import praw
 from collections import Counter
+from nltk.tokenize import word_tokenize
+nltk.download("punkt")
 
 # -----------------------------
 # NLTK Setup
@@ -89,15 +91,26 @@ mental_model, mental_tokenizer, sentiment_model, sentiment_tokenizer, label_enco
 # Text Cleaning
 # -----------------------------
 def clean_text(text: str) -> str:
-    text = text.lower()
-    text = contractions.fix(text)
-    text = pd.Series([text])
-    text = text.str.replace(r"@\w+|#\w+|https?://\S+|www\.\S+", "", regex=True)
-    text = text.str.replace(r"\d+", "", regex=True)
-    text = text.str.replace(r"[^\w\s]", "", regex=True)
-    text = text.str.replace(r"\s+", " ", regex=True).str.strip()
-    text = text.apply(lambda x: " ".join(w for w in x.split() if w not in stop_words))
-    return text.iloc[0]
+    is_string = False
+    if isinstance(text, str):
+        text = pd.Series([text])
+        is_string = True
+
+    text = text.str.lower()
+    text = text.apply(contractions.fix)
+    text = text.str.replace(r'[^\x00-\x7F]+', '', regex=True)
+    text = text.str.replace(r'@\w+', '', regex=True)
+    text = text.str.replace(r'#\w+', '', regex=True)
+    text = text.str.replace(r'https?://\S+|www\.\S+', '', regex=True)
+    text = text.str.replace(r'<.*?>', '', regex=True)
+    text = text.str.replace(r'\[.*?\]', '', regex=True)
+    text = text.str.replace(r'\d+', '', regex=True)
+    text = text.str.replace(r'[^\w\s]', '', regex=True)
+    text = text.str.replace('-', ' ', regex=False)
+    text = text.str.replace(r'\s+', ' ', regex=True).str.strip()
+    text = text.apply(lambda x: ' '.join([w for w in x.split() if w not in stop_words]))
+
+    return text.iloc[0] if is_string else text
 
 # -----------------------------
 # Labels & Suggestions
@@ -283,6 +296,7 @@ awareness_info= {
 # Detection Function
 # -----------------------------
 def detection_with_sentiment(text: str):
+    # Use cleaned text for model
     cleaned = clean_text(text)
 
     mh_inputs = mental_tokenizer(
@@ -296,7 +310,10 @@ def detection_with_sentiment(text: str):
         confidence = F.softmax(logits, dim=1)[0, idx].item()
 
     status = label_encoder.inverse_transform([idx])[0]
-    tokens = mental_tokenizer.tokenize(cleaned)[:10]
+
+    # Use proper word tokenization for top words (not subword BERT tokens)
+    top_words = word_tokenize(cleaned)
+    top_words = top_words[:10]  # pick top 10 words
 
     sent_inputs = sentiment_tokenizer(
         cleaned, return_tensors="pt", truncation=True, max_length=512
@@ -304,14 +321,12 @@ def detection_with_sentiment(text: str):
     sent_inputs = {k: v.to(device) for k, v in sent_inputs.items()}
 
     with torch.no_grad():
-        probs = F.softmax(
-            sentiment_model(**sent_inputs).logits, dim=-1
-        ).cpu().numpy()[0]
+        probs = F.softmax(sentiment_model(**sent_inputs).logits, dim=-1).cpu().numpy()[0]
 
     return {
         "status": status,
         "confidence": confidence,
-        "top_words": tokens,
+        "top_words": top_words,
         "sentiment": {
             "negative": float(probs[0]),
             "neutral": float(probs[1]),
@@ -441,24 +456,46 @@ input_text = st.text_area(
     else "Masukkan teks anda (Bahasa Melayu atau Inggeris):"
 )
 
-# Translate Malay → English for model
-translated = input_text
-
-if input_text.strip():
+def safe_translate(text, target='en'):
+    if not text.strip():
+        return text
     try:
-        translated = GoogleTranslator(
-            source='auto',
-            target='en'
-        ).translate(input_text)
+        return GoogleTranslator(source='auto', target=target).translate(text)
     except Exception as e:
-        st.warning("Translation failed. Using original text.")
-        translated = input_text
+        st.warning(f"Translation failed: {e}. Using original text.")
+        return text
 
-    st.write(
-        "Translated Text:" if language == "English" else "Teks Terjemahan:",
-        translated
-    )
+translated = input_text
+if language == "Malay" and input_text.strip():
+    translated = safe_translate(input_text, target="en")
 
+st.write(
+    "Translated Text:" if language == "English" else "Teks Terjemahan:",
+    translated
+)
+
+# -----------------------------
+# Detection and Top Words Translation
+# -----------------------------
+def get_top_words_translation(cleaned_text: str, language: str) -> list:
+    """
+    Returns top words for explanation tab,
+    translated to Malay if needed.
+    """
+    from nltk.tokenize import word_tokenize
+
+    top_words = word_tokenize(cleaned_text)
+    top_words = top_words[:10]  # take top 10 words
+
+    # Translate top words to Malay for display
+    if language == "Malay" and top_words:
+        try:
+            text = " ".join(top_words)
+            translated_text = safe_translate(text, target="ms")
+            return translated_text.split()
+        except:
+            return top_words
+    return top_words
 
 # Initialize session state
 if "result" not in st.session_state:
@@ -518,20 +555,14 @@ if st.session_state["result"]:
     # Tab 2: Explanation
     with tabs[1]:
         st.subheader("Top Contributing Words" if language == "English" else "Perkataan Penyumbang Utama")
+        # Translate top words to Malay if needed
         if language == "Malay":
-            try:
-                top_text = " ".join(top_words)
-                top_text_malay = GoogleTranslator(
-                                    source='en',
-                                    target='ms'
-                                ).translate(top_text)
-
-                top_words_display = top_text_malay.split()
-            except:
-                top_words_display = top_words
+            top_words_display = get_top_words_translation(" ".join(top_words), language)
         else:
             top_words_display = top_words
+
         st.markdown(f"**{', '.join(top_words_display)}**")
+
 
     # Tab 3: Suggestions
     with tabs[2]:
@@ -723,7 +754,7 @@ if st.session_state["result"]:
                     labels = []
                     for post in posts:
                         try:
-                            res = detection_with_sentiment(post)
+                            res = detection_with_sentiment(safe_translate(post, target="en"))
                             labels.append(res["status"])
                         except:
                             continue
