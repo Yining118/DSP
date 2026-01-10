@@ -19,32 +19,68 @@ from transformers import MarianMTModel, MarianTokenizer
 import os
 
 
-# -------------------------------
+# -----------------------------
 # NLTK Setup
-# -------------------------------
-nltk.download('stopwords')
-stop_words = set(stopwords.words('english'))
+# -----------------------------
+nltk.download("stopwords")
+stop_words = set(stopwords.words("english"))
 
-# -------------------------------
-# Load Models & Tokenizers
-# -------------------------------
+# -----------------------------
+# Helper: Download & Extract ZIP
+# -----------------------------
+def download_and_extract(url: str, output_folder: str):
+    zip_path = output_folder + ".zip"
+
+    if not os.path.exists(output_folder):
+        gdown.download(url, zip_path, quiet=False)
+        with zipfile.ZipFile(zip_path, "r") as zip_ref:
+            zip_ref.extractall(output_folder)
+        os.remove(zip_path)
+
+    for root, _, files in os.walk(output_folder):
+        if any(f in files for f in ["config.json", "pytorch_model.bin", "model.safetensors"]):
+            return root
+
+    raise FileNotFoundError("No HuggingFace model files found.")
+
+# -----------------------------
+# Load Models (SAFE FOR STREAMLIT CLOUD)
+# -----------------------------
 @st.cache_resource
 def load_models():
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    device = torch.device("cpu")  # FORCE CPU (Streamlit Cloud)
 
+    mental_url = "https://drive.google.com/uc?id=1jgYUPc5ZHyzMqjK6y1mPTIEzNfVT1A-p"
+    sentiment_url = "https://drive.google.com/uc?id=12Gmm6KQmY4daxf3tUDber8p3CwBu2rVV"
+    label_url = "https://drive.google.com/uc?id=1njNff6TxkJEOjxAY7HU_wXnrnFzs9ulp"
+
+    mental_dir = download_and_extract(mental_url, "saved_mental_status_bert")
+    sentiment_dir = download_and_extract(sentiment_url, "saved_sentiment_model")
+
+    # DO NOT CALL .to(device) ON MODELS
     mental_model = AutoModelForSequenceClassification.from_pretrained(
-        "saved_mental_status_bert", device_map="cpu"
+        mental_dir,
+        torch_dtype=torch.float32,
+        low_cpu_mem_usage=False
     )
-    mental_model.to(device)
 
     sentiment_model = AutoModelForSequenceClassification.from_pretrained(
-        "saved_sentiment_model", device_map="cpu"
+        sentiment_dir,
+        torch_dtype=torch.float32,
+        low_cpu_mem_usage=False
     )
-    sentiment_model.to(device)
 
-    mental_tokenizer = AutoTokenizer.from_pretrained("saved_mental_status_bert", use_fast=False)
-    sentiment_tokenizer = AutoTokenizer.from_pretrained("saved_sentiment_model", use_fast=False)
-    label_encoder = pickle.load(open("label_encoder.pkl", "rb"))
+    mental_tokenizer = AutoTokenizer.from_pretrained(mental_dir)
+    sentiment_tokenizer = AutoTokenizer.from_pretrained(sentiment_dir)
+
+    if not os.path.exists("label_encoder.pkl"):
+        gdown.download(label_url, "label_encoder.pkl", quiet=False)
+
+    with open("label_encoder.pkl", "rb") as f:
+        label_encoder = pickle.load(f)
+
+    mental_model.eval()
+    sentiment_model.eval()
 
     return mental_model, mental_tokenizer, sentiment_model, sentiment_tokenizer, label_encoder, device
 
@@ -416,7 +452,7 @@ language = st.selectbox("Choose language / Pilih bahasa:", ["English", "Malay"])
 
 # Title
 st.title(
-    "🌟 Sentiment Detection App 🌟"
+    "🌟 Mental Health Status & Sentiment Detection App 🌟"
     if language == "English"
     else "🌟 Aplikasi Pengesanan Kesihatan Mental & Sentimen 🌟"
 )
