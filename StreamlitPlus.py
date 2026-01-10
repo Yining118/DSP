@@ -418,7 +418,7 @@ language = st.selectbox("Choose language / Pilih bahasa:", ["English", "Malay"])
 
 # Title
 st.title(
-    "🌟 Mental Health & Sentiment Detection App 🌟"
+    "🌟 Sentiment Detection App 🌟"
     if language == "English"
     else "🌟 Aplikasi Pengesanan Kesihatan Mental & Sentimen 🌟"
 )
