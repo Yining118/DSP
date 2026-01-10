@@ -525,14 +525,19 @@ if st.session_state["result"]:
     # Tab 2: Explanation
     with tabs[1]:
         st.subheader("Top Contributing Words" if language == "English" else "Perkataan Penyumbang Utama")
+
         if language == "Malay":
-            top_text = " ".join(top_words)
-            inputs = translation_tokenizer(top_text, return_tensors="pt", truncation=True)
-            translated = translation_model.generate(**inputs)
-            top_text_malay = translation_tokenizer.decode(translated[0], skip_special_tokens=True)
-            top_words_display = top_text_malay.split()
+            top_words_display = []
+            for word in top_words:
+                if not word.strip():
+                    continue
+                inputs = translation_tokenizer(word, return_tensors="pt", truncation=True)
+                translated = translation_model.generate(**inputs)
+                word_malay = translation_tokenizer.decode(translated[0], skip_special_tokens=True)
+                top_words_display.append(word_malay)
         else:
             top_words_display = top_words
+
         st.markdown(f"**{', '.join(top_words_display)}**")
 
     # Tab 3: Suggestions
