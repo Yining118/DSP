@@ -1,87 +1,47 @@
-from jupyterlab_server import translator
 import streamlit as st
 import torch
 import torch.nn.functional as F
-from transformers import AutoModelForSequenceClassification, AutoTokenizer
+from transformers import AutoModelForSequenceClassification, AutoTokenizer, MarianMTModel, MarianTokenizer
 import pickle
 import nltk
-import matplotlib.pyplot as plt
 from nltk.corpus import stopwords
 import contractions
 import pandas as pd
 import os
 import gdown
 import zipfile
-import numpy as np
-import plotly.express as px
 import random
 import praw
 from collections import Counter
-from transformers import MarianMTModel, MarianTokenizer
+import matplotlib.pyplot as plt
+import plotly.express as px
 
-
-# -----------------------------
+# -------------------------------
 # NLTK Setup
-# -----------------------------
-nltk.download("stopwords")
-stop_words = set(stopwords.words("english"))
+# -------------------------------
+nltk.download('stopwords')
+stop_words = set(stopwords.words('english'))
 
-# -----------------------------
-# Helper: Download & Extract ZIP
-# -----------------------------
-def download_and_extract(url: str, output_folder: str):
-    zip_path = output_folder + ".zip"
-
-    if not os.path.exists(output_folder):
-        gdown.download(url, zip_path, quiet=False)
-        with zipfile.ZipFile(zip_path, "r") as zip_ref:
-            zip_ref.extractall(output_folder)
-        os.remove(zip_path)
-
-    for root, _, files in os.walk(output_folder):
-        if any(f in files for f in ["config.json", "pytorch_model.bin", "model.safetensors"]):
-            return root
-
-    raise FileNotFoundError("No HuggingFace model files found.")
-
-# -----------------------------
-# Load Models (SAFE FOR STREAMLIT CLOUD)
-# -----------------------------
+# -------------------------------
+# Load Models & Tokenizers
+# -------------------------------
 @st.cache_resource
 def load_models():
-    device = torch.device("cpu")  # FORCE CPU (Streamlit Cloud)
+    device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    mental_url = "https://drive.google.com/uc?id=1jgYUPc5ZHyzMqjK6y1mPTIEzNfVT1A-p"
-    sentiment_url = "https://drive.google.com/uc?id=12Gmm6KQmY4daxf3tUDber8p3CwBu2rVV"
-    label_url = "https://drive.google.com/uc?id=1njNff6TxkJEOjxAY7HU_wXnrnFzs9ulp"
-
-    mental_dir = download_and_extract(mental_url, "saved_mental_status_bert")
-    sentiment_dir = download_and_extract(sentiment_url, "saved_sentiment_model")
-
-    # DO NOT CALL .to(device) ON MODELS
     mental_model = AutoModelForSequenceClassification.from_pretrained(
-        mental_dir,
-        torch_dtype=torch.float32,
-        low_cpu_mem_usage=False
+        "saved_mental_status_bert", device_map="cpu"
     )
+    mental_model.to(device)
 
     sentiment_model = AutoModelForSequenceClassification.from_pretrained(
-        sentiment_dir,
-        torch_dtype=torch.float32,
-        low_cpu_mem_usage=False
+        "saved_sentiment_model", device_map="cpu"
     )
+    sentiment_model.to(device)
 
-    mental_tokenizer = AutoTokenizer.from_pretrained(mental_dir)
-    sentiment_tokenizer = AutoTokenizer.from_pretrained(sentiment_dir)
-
-    if not os.path.exists("label_encoder.pkl"):
-        gdown.download(label_url, "label_encoder.pkl", quiet=False)
-
-    with open("label_encoder.pkl", "rb") as f:
-        label_encoder = pickle.load(f)
-
-    mental_model.eval()
-    sentiment_model.eval()
+    mental_tokenizer = AutoTokenizer.from_pretrained("saved_mental_status_bert", use_fast=False)
+    sentiment_tokenizer = AutoTokenizer.from_pretrained("saved_sentiment_model", use_fast=False)
+    label_encoder = pickle.load(open("label_encoder.pkl", "rb"))
 
     return mental_model, mental_tokenizer, sentiment_model, sentiment_tokenizer, label_encoder, device
 
@@ -295,6 +255,26 @@ awareness_info= {
 
 
 # -------------------------------
+# Load MarianMT Translation Model
+# -------------------------------
+@st.cache_resource
+def load_translation_model():
+    model_name = "Helsinki-NLP/opus-mt-ms-en"
+    tokenizer = MarianTokenizer.from_pretrained(model_name)
+    model = MarianMTModel.from_pretrained(model_name)
+    model.eval()
+    return tokenizer, model
+
+translation_tokenizer, translation_model = load_translation_model()
+
+def translate_malay_to_english(text):
+    if not text.strip():
+        return ""
+    inputs = translation_tokenizer(text, return_tensors="pt", truncation=True)
+    translated = translation_model.generate(**inputs)
+    return translation_tokenizer.decode(translated[0], skip_special_tokens=True)
+
+# -------------------------------
 # Detection Function
 # -------------------------------
 def detection_with_sentiment(text):
@@ -330,41 +310,21 @@ def detection_with_sentiment(text):
     }
 
 # -------------------------------
-# Social Media Fetch (Reddit) - Newest posts
+# Reddit Fetch
 # -------------------------------
 @st.cache_data(show_spinner=False)
 def fetch_reddit_posts(keyword, limit=100):
     reddit = praw.Reddit(
         client_id="eAKZnHy0bMWsFzfoLkkVcA",
         client_secret="MwzVtX2XnFPCGRjJs5NZZHDTrkwUkA",
-        user_agent="MentalHealthAnalysis:v1.0 (by u/Awkward-Chemical1039)"
+        user_agent="MentalHealthAnalysis:v1.0"
     )
 
     posts = []
-
-    # Search by newest posts
-    for submission in reddit.subreddit("all").search(
-        keyword, sort='new', limit=limit
-    ):
-        # Only keep posts with enough text
+    for submission in reddit.subreddit("all").search(keyword, sort='new', limit=limit):
         if submission.selftext and len(submission.selftext) > 20:
             posts.append(submission.selftext)
-
     return posts
-
-
-# -------------------------------
-# Load MarianMT Translation Model
-# -------------------------------
-@st.cache_resource
-def load_translation_model():
-    model_name = "Helsinki-NLP/opus-mt-ms-en"
-    tokenizer = MarianTokenizer.from_pretrained(model_name)
-    model = MarianMTModel.from_pretrained(model_name)
-    model.eval()
-    return tokenizer, model
-
-translation_tokenizer, translation_model = load_translation_model()
 
 # -------------------------------
 # Streamlit UI
@@ -465,22 +425,10 @@ input_text = st.text_area(
     else "Masukkan teks anda (Bahasa Melayu atau Inggeris):"
 )
 
-def translate_malay_to_english(text):
-    if not text.strip():
-        return ""
-    inputs = translation_tokenizer(text, return_tensors="pt", truncation=True)
-    translated = translation_model.generate(**inputs)
-    return translation_tokenizer.decode(translated[0], skip_special_tokens=True)
-
-# Translate Malay → English for model
-if input_text:
-    try:
-        translated = translate_malay_to_english(input_text)
-    except:
-        translated = input_text
-    st.write(
-        "Translated Text:" if language == "English" else "Teks Terjemahan:", translated
-    )
+# Translate Malay → English
+translated_text = translate_malay_to_english(input_text) if language=="Malay" else input_text
+if translated_text:
+    st.write("Translated Text:" if language=="English" else "Teks Terjemahan:", translated_text)
 
 # Initialize session state
 if "result" not in st.session_state:
@@ -491,14 +439,12 @@ if "show_awareness" not in st.session_state:
     st.session_state["show_awareness"] = False
 
 # Detect Button
-if st.button("Detect" if language == "English" else "Kesan"):
-    if not input_text.strip():
-        st.warning(
-            "Please enter some text first." if language == "English" else "Sila masukkan teks dahulu."
-        )
+if st.button("Detect" if language=="English" else "Kesan"):
+    if not translated_text.strip():
+        st.warning("Please enter some text." if language=="English" else "Sila masukkan teks.")
     else:
-        st.session_state["result"] = detection_with_sentiment(translated)
-        st.session_state["show_awareness"] = False  # reset awareness
+        st.session_state["result"] = detection_with_sentiment(translated_text)
+
 
 # Only proceed if detection has been done
 if st.session_state["result"]:
