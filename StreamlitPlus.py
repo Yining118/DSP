@@ -16,9 +16,8 @@ from collections import Counter
 import matplotlib.pyplot as plt
 import plotly.express as px
 from transformers import MarianMTModel, MarianTokenizer
-
 import os
-hf_token = os.environ.get("HF_TOKEN")
+
 
 # -------------------------------
 # NLTK Setup
