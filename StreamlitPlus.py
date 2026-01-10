@@ -11,7 +11,7 @@ import pandas as pd
 import os
 import gdown
 import zipfile
-from deep_translator import GoogleTranslator
+from googletrans import Translator
 import numpy as np
 import plotly.express as px
 import random
@@ -466,13 +466,12 @@ input_text = st.text_area(
 # Translation Function
 # -----------------------------
 def safe_translate(text, target='en', source='auto'):
-    """
-    Safely translate text. Returns original text if translation fails.
-    """
     if not text.strip():
         return text
     try:
-        return GoogleTranslator(source=source, target=target).translate(text)
+        translator = Translator()
+        result = translator.translate(text, dest=target, src=source)
+        return result.text
     except Exception as e:
         st.warning(f"Translation failed: {e}. Using original text.")
         return text
@@ -499,7 +498,7 @@ def get_top_words_translation(top_words: list, language: str) -> list:
     if language == "Malay" and top_words:
         try:
             text = " ".join(top_words)
-            translated_text = GoogleTranslator(source='en', target='ms').translate(text)
+            translated_text = Translator(source='en', target='ms').translate(text)
             return translated_text.split()
         except Exception as e:
             st.warning(f"Top words translation failed: {e}")
