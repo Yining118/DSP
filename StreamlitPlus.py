@@ -11,7 +11,7 @@ import pandas as pd
 import os
 import gdown
 import zipfile
-from deep_translator import GoogleTranslator
+from deep_translator import GoogleTranslator as Translator
 import numpy as np
 import plotly.express as px
 import random
