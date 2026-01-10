@@ -11,7 +11,7 @@ import pandas as pd
 import os
 import gdown
 import zipfile
-from deep_translator import GoogleTranslator as Translator
+from deep_translator import GoogleTranslator
 import numpy as np
 import plotly.express as px
 import random
@@ -92,7 +92,6 @@ def clean_text(text: str) -> str:
     text = text.lower()
     text = contractions.fix(text)
     text = pd.Series([text])
-    text = text.str.replace(r"[^\x00-\x7F]+", "", regex=True)
     text = text.str.replace(r"@\w+|#\w+|https?://\S+|www\.\S+", "", regex=True)
     text = text.str.replace(r"\d+", "", regex=True)
     text = text.str.replace(r"[^\w\s]", "", regex=True)
@@ -346,8 +345,6 @@ def fetch_reddit_posts(keyword, limit=100):
 # -------------------------------
 # Translator Setup
 # -------------------------------
-translator = Translator()
-
 st.markdown("""
 <style>
 /* Import Google Fonts */
@@ -445,14 +442,23 @@ input_text = st.text_area(
 )
 
 # Translate Malay → English for model
-if input_text:
+translated = input_text
+
+if input_text.strip():
     try:
-        translated = GoogleTranslator(source='auto', target='en').translate(input_text)
-    except:
+        translated = GoogleTranslator(
+            source='auto',
+            target='en'
+        ).translate(input_text)
+    except Exception as e:
+        st.warning("Translation failed. Using original text.")
         translated = input_text
+
     st.write(
-        "Translated Text:" if language == "English" else "Teks Terjemahan:", translated
+        "Translated Text:" if language == "English" else "Teks Terjemahan:",
+        translated
     )
+
 
 # Initialize session state
 if "result" not in st.session_state:
@@ -515,7 +521,11 @@ if st.session_state["result"]:
         if language == "Malay":
             try:
                 top_text = " ".join(top_words)
-                top_text_malay = translator.translate(top_text, src="en", dest="ms").text
+                top_text_malay = GoogleTranslator(
+                                    source='en',
+                                    target='ms'
+                                ).translate(top_text)
+
                 top_words_display = top_text_malay.split()
             except:
                 top_words_display = top_words
