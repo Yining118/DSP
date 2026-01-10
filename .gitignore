@@ -1,0 +1,6 @@
+.env
+.vscode/
+__pycache__/
+*.pkl
+saved_mental_status_bert/
+saved_sentiment_model/
