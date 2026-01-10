@@ -9,6 +9,6 @@ contractions
 gdown
 plotly
 praw
-sentencepiece
+sentencepiece>=0.1.97
 torch
 transformers
