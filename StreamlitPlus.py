@@ -478,13 +478,15 @@ def safe_translate(text, target='en', source='auto'):
         return text
 
 # Translate input to English if user selected Malay
-translated = input_text
 if language == "Malay" and input_text.strip():
     translated = safe_translate(input_text, target="en")
+else:
+    translated = input_text
 
+# Display translated text
 st.write(
     "Translated Text:" if language == "English" else "Teks Terjemahan:",
-    translated = safe_translate(input_text, target="en")
+    translated
 )
 
 # -----------------------------
