@@ -9,4 +9,4 @@ contractions
 gdown
 plotly
 praw
-deep-translator
+deep-translator==1.10.1
