@@ -264,6 +264,7 @@ awareness_info= {
 def load_translation_model():
     model_name = "Helsinki-NLP/opus-mt-mul-en"
     hf_token = os.environ.get("HF_TOKEN")
+    st.write("HF_TOKEN set?", bool(os.environ.get("HF_TOKEN")))
     tokenizer = MarianTokenizer.from_pretrained(model_name, use_auth_token=hf_token)
     model = MarianMTModel.from_pretrained(model_name, use_auth_token=hf_token)
     model.eval()
