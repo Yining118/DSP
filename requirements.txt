@@ -8,5 +8,5 @@ scikit-learn
 contractions
 gdown
 plotly
-googletrans==4.0.0-rc1
 praw
+deep-translator
