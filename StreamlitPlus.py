@@ -1,3 +1,4 @@
+from jupyterlab_server import translator
 import streamlit as st
 import torch
 import torch.nn.functional as F
@@ -470,7 +471,7 @@ def safe_translate(text, target='en', source='auto'):
         return text
     try:
         translator = Translator()
-        result = translator.translate(text, dest=target, src=source)
+        translated_text = translator.translate(text, src='en', dest='ms').text
         return result.text
     except Exception as e:
         st.warning(f"Translation failed: {e}. Using original text.")
@@ -492,13 +493,11 @@ st.write(
 # Function to Translate Top Words
 # -----------------------------
 def get_top_words_translation(top_words: list, language: str) -> list:
-    """
-    Translate top words to Malay if needed.
-    """
     if language == "Malay" and top_words:
         try:
             text = " ".join(top_words)
-            translated_text = Translator(source='en', target='ms').translate(text)
+            translator = Translator()
+            translated_text = translator.translate(text, src='en', dest='ms').text
             return translated_text.split()
         except Exception as e:
             st.warning(f"Top words translation failed: {e}")
