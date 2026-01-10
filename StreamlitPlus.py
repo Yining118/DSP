@@ -15,6 +15,7 @@ import praw
 from collections import Counter
 import matplotlib.pyplot as plt
 import plotly.express as px
+from transformers import MarianMTModel, MarianTokenizer
 
 # -------------------------------
 # NLTK Setup
@@ -259,7 +260,7 @@ awareness_info= {
 # -------------------------------
 @st.cache_resource
 def load_translation_model():
-    model_name = "Helsinki-NLP/opus-mt-ms-en"
+    model_name = "Helsinki-NLP/opus-mt-mul-en"
     tokenizer = MarianTokenizer.from_pretrained(model_name)
     model = MarianMTModel.from_pretrained(model_name)
     model.eval()
