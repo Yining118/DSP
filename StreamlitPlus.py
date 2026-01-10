@@ -11,7 +11,7 @@ import pandas as pd
 import os
 import gdown
 import zipfile
-from googletrans import Translator
+from deep_translator import GoogleTranslator
 import numpy as np
 import plotly.express as px
 import random
@@ -447,7 +447,7 @@ input_text = st.text_area(
 # Translate Malay → English for model
 if input_text:
     try:
-        translated = translator.translate(input_text, dest='en').text
+        translated = GoogleTranslator(source='auto', target='en').translate(input_text)
     except:
         translated = input_text
     st.write(
