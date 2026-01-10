@@ -12,12 +12,12 @@ import pandas as pd
 import os
 import gdown
 import zipfile
-from googletrans import Translator
 import numpy as np
 import plotly.express as px
 import random
 import praw
 from collections import Counter
+from transformers import MarianMTModel, MarianTokenizer
 
 
 # -----------------------------
@@ -87,10 +87,10 @@ def load_models():
 
 mental_model, mental_tokenizer, sentiment_model, sentiment_tokenizer, label_encoder, device = load_models()
 
-# -----------------------------
-# Text Cleaning
-# -----------------------------
-def clean_text(text: str) -> str:
+# -------------------------------
+# Clean Text Function
+# -------------------------------
+def clean_text(text):
     is_string = False
     if isinstance(text, str):
         text = pd.Series([text])
@@ -113,16 +113,16 @@ def clean_text(text: str) -> str:
         return text.iloc[0]
     return text
 
-# -----------------------------
-# Labels & Suggestions
-# -----------------------------
+# -------------------------------
+# Suggestions & Definitions
+# -------------------------------
 suggestions_dict = {
-    "Suicidal": "Seek professional help immediately. Call a helpline or trusted person.",
-    "Anxiety": "Practice mindfulness or talk to a therapist.",
-    "Depression": "Maintain routines and reach out for support.",
-    "Stress": "Take breaks and practice relaxation techniques.",
-    "Bipolar": "Monitor moods and consult professionals.",
-    "Personality disorder": "Therapy and structured routines can help.",
+    "Suicidal": "Seek professional help immediately. Call helplines or talk to a trusted person.",
+    "Anxiety": "Practice deep breathing, mindfulness, or talk to a therapist.",
+    "Depression": "Engage in daily routines, physical activity, and reach out for support.",
+    "Stress": "Take breaks, practice relaxation techniques, and prioritize tasks.",
+    "Bipolar": "Monitor moods, adhere to treatment, and consult mental health professionals.",
+    "Personality disorder": "Therapy and self-awareness can help manage symptoms. Build supportive routines.",
     "Normal": "Keep up your healthy habits."
 }
 
@@ -147,13 +147,13 @@ label_names_malay = {
 }
 
 label_definitions = {
-    "Suicidal": "Thoughts of self-harm or hopelessness.",
-    "Anxiety": "Persistent worry or fear.",
-    "Depression": "Ongoing sadness and loss of interest.",
-    "Stress": "Mental or physical tension.",
-    "Bipolar": "Mood swings between highs and lows.",
-    "Personality disorder": "Long-term behavioral patterns.",
-    "Normal": "No significant concern detected."
+    "Suicidal": "Intense feelings of hopelessness and thoughts of self-harm.",
+    "Anxiety": "Excessive worry or fear that affects daily activities.",
+    "Depression": "Persistent sadness, lack of energy, and loss of interest.",
+    "Stress": "Physical or mental tension due to challenging situations.",
+    "Bipolar": "Mood disorder with alternating manic and depressive episodes.",
+    "Personality disorder": "Enduring patterns of behavior affecting social and emotional life.",
+    "Normal": "No significant mental health concern detected."
 }
 
 label_definitions_malay = {
@@ -293,9 +293,10 @@ awareness_info= {
     }
 }
 
-# -----------------------------
+
+# -------------------------------
 # Detection Function
-# -----------------------------
+# -------------------------------
 def detection_with_sentiment(text):
     cleaned_text = clean_text(text)
 
@@ -328,7 +329,6 @@ def detection_with_sentiment(text):
         "sentiment": sentiment
     }
 
-
 # -------------------------------
 # Social Media Fetch (Reddit) - Newest posts
 # -------------------------------
@@ -354,9 +354,17 @@ def fetch_reddit_posts(keyword, limit=100):
 
 
 # -------------------------------
-# Translator Setup
+# Load MarianMT Translation Model
 # -------------------------------
-translator = Translator()
+@st.cache_resource
+def load_translation_model():
+    model_name = "Helsinki-NLP/opus-mt-ms-en"
+    tokenizer = MarianTokenizer.from_pretrained(model_name)
+    model = MarianMTModel.from_pretrained(model_name)
+    model.eval()
+    return tokenizer, model
+
+translation_tokenizer, translation_model = load_translation_model()
 
 # -------------------------------
 # Streamlit UI
@@ -457,10 +465,17 @@ input_text = st.text_area(
     else "Masukkan teks anda (Bahasa Melayu atau Inggeris):"
 )
 
+def translate_malay_to_english(text):
+    if not text.strip():
+        return ""
+    inputs = translation_tokenizer(text, return_tensors="pt", truncation=True)
+    translated = translation_model.generate(**inputs)
+    return translation_tokenizer.decode(translated[0], skip_special_tokens=True)
+
 # Translate Malay → English for model
 if input_text:
     try:
-        translated = translator.translate(input_text, dest='en').text
+        translated = translate_malay_to_english(input_text)
     except:
         translated = input_text
     st.write(
