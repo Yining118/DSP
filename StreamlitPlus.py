@@ -109,8 +109,9 @@ def clean_text(text: str) -> str:
     text = text.str.replace('-', ' ', regex=False)
     text = text.str.replace(r'\s+', ' ', regex=True).str.strip()
     text = text.apply(lambda x: ' '.join([w for w in x.split() if w not in stop_words]))
-
-    return text.iloc[0] if is_string else text
+    if is_string:
+        return text.iloc[0]
+    return text
 
 # -----------------------------
 # Labels & Suggestions
@@ -313,7 +314,7 @@ def detection_with_sentiment(text: str):
 
     # Use proper word tokenization for top words (not subword BERT tokens)
     top_words = word_tokenize(cleaned)
-    top_words = top_words[:10]  # pick top 10 words
+    top_words = top_words[:100]  # pick top 100 words
 
     sent_inputs = sentiment_tokenizer(
         cleaned, return_tensors="pt", truncation=True, max_length=512
@@ -439,32 +440,44 @@ svg text {
 """, unsafe_allow_html=True)
 
 
-# Language selector
+# Language Selector
+# -----------------------------
 language = st.selectbox("Choose language / Pilih bahasa:", ["English", "Malay"])
 
+# -----------------------------
 # Title
+# -----------------------------
 st.title(
     "🌟 Mental Health & Sentiment Detection App 🌟"
     if language == "English"
     else "🌟 Aplikasi Pengesanan Kesihatan Mental & Sentimen 🌟"
 )
 
-# Input
+# -----------------------------
+# Input Text
+# -----------------------------
 input_text = st.text_area(
     "Enter your text (Malay or English):"
     if language == "English"
     else "Masukkan teks anda (Bahasa Melayu atau Inggeris):"
 )
 
-def safe_translate(text, target='en'):
+# -----------------------------
+# Translation Function
+# -----------------------------
+def safe_translate(text, target='en', source='auto'):
+    """
+    Safely translate text. Returns original text if translation fails.
+    """
     if not text.strip():
         return text
     try:
-        return GoogleTranslator(source='auto', target=target).translate(text)
+        return GoogleTranslator(source=source, target=target).translate(text)
     except Exception as e:
         st.warning(f"Translation failed: {e}. Using original text.")
         return text
 
+# Translate input to English if user selected Malay
 translated = input_text
 if language == "Malay" and input_text.strip():
     translated = safe_translate(input_text, target="en")
@@ -475,47 +488,50 @@ st.write(
 )
 
 # -----------------------------
-# Detection and Top Words Translation
+# Function to Translate Top Words
 # -----------------------------
-def get_top_words_translation(cleaned_text: str, language: str) -> list:
+def get_top_words_translation(top_words: list, language: str) -> list:
     """
-    Returns top words for explanation tab,
-    translated to Malay if needed.
+    Translate top words to Malay if needed.
     """
-    from nltk.tokenize import word_tokenize
-
-    top_words = word_tokenize(cleaned_text)
-    top_words = top_words[:10]  # take top 10 words
-
-    # Translate top words to Malay for display
     if language == "Malay" and top_words:
         try:
             text = " ".join(top_words)
-            translated_text = safe_translate(text, target="ms")
+            translated_text = GoogleTranslator(source='en', target='ms').translate(text)
             return translated_text.split()
-        except:
+        except Exception as e:
+            st.warning(f"Top words translation failed: {e}")
             return top_words
     return top_words
 
-# Initialize session state
+# -----------------------------
+# Initialize Session State
+# -----------------------------
 if "result" not in st.session_state:
     st.session_state["result"] = None
 if "social_result" not in st.session_state:
     st.session_state["social_result"] = None
 if "show_awareness" not in st.session_state:
     st.session_state["show_awareness"] = False
+if "social_posts" not in st.session_state:
+    st.session_state["social_posts"] = []
 
+# -----------------------------
 # Detect Button
+# -----------------------------
 if st.button("Detect" if language == "English" else "Kesan"):
     if not input_text.strip():
         st.warning(
             "Please enter some text first." if language == "English" else "Sila masukkan teks dahulu."
         )
     else:
+        # Replace detection_with_sentiment with your actual detection function
         st.session_state["result"] = detection_with_sentiment(translated)
         st.session_state["show_awareness"] = False  # reset awareness
 
-# Only proceed if detection has been done
+# -----------------------------
+# Display Results
+# -----------------------------
 if st.session_state["result"]:
     result = st.session_state["result"]
     status = result["status"]
@@ -523,7 +539,7 @@ if st.session_state["result"]:
     confidence = result["confidence"]
     top_words = result["top_words"]
 
-    # Get language-specific display
+    # Language-specific labels
     display_label = status if language == "English" else label_names_malay.get(status, status)
     display_definition = (
         label_definitions[status]
@@ -538,7 +554,9 @@ if st.session_state["result"]:
         else ["Status", "Penerangan", "Cadangan", "Sentimen", "Media Sosial"]
     )
 
+    # -----------------------------
     # Tab 1: Status
+    # -----------------------------
     with tabs[0]:
         st.subheader(
             "Mental Health Status" if language == "English" else "Status Kesihatan Mental"
@@ -548,23 +566,20 @@ if st.session_state["result"]:
             f"<h3>{display_label} ({confidence*100:.1f}% {'confidence' if language=='English' else 'keyakinan'})</h3></div>",
             unsafe_allow_html=True,
         )
-
         with st.expander("What does this label mean?" if language == "English" else "Apa maksud label ini?"):
             st.write(display_definition)
 
+    # -----------------------------
     # Tab 2: Explanation
+    # -----------------------------
     with tabs[1]:
         st.subheader("Top Contributing Words" if language == "English" else "Perkataan Penyumbang Utama")
-        # Translate top words to Malay if needed
-        if language == "Malay":
-            top_words_display = get_top_words_translation(" ".join(top_words), language)
-        else:
-            top_words_display = top_words
-
+        top_words_display = get_top_words_translation(top_words, language)
         st.markdown(f"**{', '.join(top_words_display)}**")
 
-
+    # -----------------------------
     # Tab 3: Suggestions
+    # -----------------------------
     with tabs[2]:
         st.subheader("Suggested Actions" if language == "English" else "Cadangan Tindakan")
         display_suggestion = (
@@ -577,7 +592,6 @@ if st.session_state["result"]:
             unsafe_allow_html=True,
         )
 
-        # Awareness Button
         if st.button("Find Out More About Mental Health" if language == "English" else "Ketahui Lebih Lanjut Mengenai Kesihatan Mental"):
             st.session_state["show_awareness"] = True
 
@@ -590,7 +604,9 @@ if st.session_state["result"]:
                     for action in info["Actions"][language]:
                         st.write(f"- {action}")
 
+    # -----------------------------
     # Tab 4: Sentiment
+    # -----------------------------
     with tabs[3]:
         col1, col2 = st.columns([1, 1])
 
@@ -606,47 +622,17 @@ if st.session_state["result"]:
                 unsafe_allow_html=True,
             )
 
-            # Flip card for mood
+            # Flip card
             dominant = max(sentiment, key=sentiment.get)
             tips = {
-                "negative": [
-                    "Take a deep breath and smile 😊",
-                    "Listen to your favorite music today!",
-                    "Try a short walk to refresh your mind.",
-                ]
-                if language == "English"
-                else [
-                    "Tarik nafas dalam dan senyum 😊",
-                    "Dengar muzik kegemaran anda hari ini!",
-                    "Cuba berjalan sebentar untuk menyegarkan minda.",
-                ],
-                "neutral": [
-                    "Keep doing what you’re doing!",
-                    "Take a short break and enjoy a snack.",
-                    "Balance your day with some fun activities.",
-                ]
-                if language == "English"
-                else [
-                    "Teruskan aktiviti anda!",
-                    "Berehat sebentar dan nikmati snek.",
-                    "Seimbangkan hari anda dengan aktiviti menyeronokkan.",
-                ],
-                "positive": [
-                    "Keep up the great mood! 🌟",
-                    "Share your happiness with someone today.",
-                    "Celebrate the little wins!",
-                ]
-                if language == "English"
-                else [
-                    "Teruskan mood baik! 🌟",
-                    "Kongsi kebahagiaan anda dengan seseorang.",
-                    "Raikan kejayaan kecil!",
-                ],
+                "negative": ["Tarik nafas dalam dan senyum 😊", "Dengar muzik kegemaran anda hari ini!", "Cuba berjalan sebentar untuk menyegarkan minda."] if language=="Malay" else ["Take a deep breath and smile 😊","Listen to your favorite music today!","Try a short walk to refresh your mind."],
+                "neutral": ["Teruskan aktiviti anda!","Berehat sebentar dan nikmati snek.","Seimbangkan hari anda dengan aktiviti menyeronokkan."] if language=="Malay" else ["Keep doing what you’re doing!","Take a short break and enjoy a snack.","Balance your day with some fun activities."],
+                "positive": ["Teruskan mood baik! 🌟","Kongsi kebahagiaan anda dengan seseorang.","Raikan kejayaan kecil!"] if language=="Malay" else ["Keep up the great mood! 🌟","Share your happiness with someone today.","Celebrate the little wins!"]
             }
             mood_messages = {
-                "negative": "You are in a bad mood 😔" if language == "English" else "Anda berada dalam mood buruk 😔",
-                "neutral": "You are feeling okay 🙂" if language == "English" else "Anda rasa biasa-biasa sahaja 🙂",
-                "positive": "You are in a good mood 😄" if language == "English" else "Anda berada dalam mood baik 😄",
+                "negative": "Anda berada dalam mood buruk 😔" if language=="Malay" else "You are in a bad mood 😔",
+                "neutral": "Anda rasa biasa-biasa sahaja 🙂" if language=="Malay" else "You are feeling okay 🙂",
+                "positive": "Anda berada dalam mood baik 😄" if language=="Malay" else "You are in a good mood 😄"
             }
             mood_message = mood_messages[dominant.lower()]
             tip_message = random.choice(tips[dominant.lower()])
@@ -703,7 +689,7 @@ if st.session_state["result"]:
             st.markdown(flip_card_html, unsafe_allow_html=True)
 
         with col2:
-            labels = ['Negative','Neutral','Positive'] if language=="English" else ['Negatif','Neutral','Positif']
+            labels = ['Negatif','Neutral','Positif'] if language=="Malay" else ['Negative','Neutral','Positive']
             sizes = [sentiment.get('negative',0), sentiment.get('neutral',0), sentiment.get('positive',0)]
             fig, ax = plt.subplots(figsize=(4,4))
             fig.patch.set_alpha(0)
@@ -713,7 +699,7 @@ if st.session_state["result"]:
                 explode=(0.05,0.05,0.05), shadow=True
             )
             st.pyplot(fig, transparent=True)
-
+            
     # Tab 5: Social Media Analysis
     with tabs[4]:
         st.subheader(
