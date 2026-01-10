@@ -9,14 +9,6 @@ contractions
 gdown
 plotly
 praw
-googletrans==4.0.0-rc1
 sentencepiece
 torch
 transformers
-deep-translator
-
-# .streamlit/config.toml
-[server]
-maxUploadSize = 200
-enableCORS = true
-enableXsrfProtection = true
